@@ -62,7 +62,7 @@ object ZipIO extends LazyLogging {
       */
     def withFile(name: String)(f: OutputStream => Future[_])(implicit ec: ExecutionContext) = {
       stream.putNextEntry(new ZipEntry(name))
-      f(stream).map(_ => stream.closeEntry())
+      f(stream).map(_ => {logger.info("wrote file into zip stream"); stream.closeEntry()})
     }
 
     /**
