@@ -1,6 +1,7 @@
 // @flow
 
 import { Slider } from "antd";
+import memoizeOne from "memoize-one";
 import * as _ from "lodash";
 import * as React from "react";
 import type { Dispatch } from "redux";
@@ -30,7 +31,8 @@ type HistogramProps = {
 
 const uint24Colors = [[255, 65, 54], [46, 204, 64], [24, 144, 255]];
 const canvasHeight = 100;
-const canvasWidth = 300;
+const canvasWidth = 280;
+const sliderHeight = 30;
 
 export function isHistogramSupported(elementClass: ElementClass): boolean {
   return ["int8", "uint8", "int16", "uint16", "float", "uint24"].includes(elementClass);
@@ -38,6 +40,10 @@ export function isHistogramSupported(elementClass: ElementClass): boolean {
 
 class Histogram extends React.PureComponent<HistogramProps> {
   canvasRef: ?HTMLCanvasElement;
+
+  getMaximumValue = memoizeOne((data: APIHistogramData) =>
+    Math.max(...data.map(({ elementCounts }) => Math.max(...elementCounts))),
+  );
 
   componentDidMount() {
     if (this.canvasRef == null) {
@@ -63,7 +69,7 @@ class Histogram extends React.PureComponent<HistogramProps> {
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     const { data } = this.props;
     // Compute the overall maximum count, so the RGB curves are scaled correctly relative to each other
-    const maxValue = Math.max(...data.map(({ elementCounts }) => Math.max(...elementCounts)));
+    const maxValue = this.getMaximumValue(data);
     for (const [i, histogram] of data.entries()) {
       const color = this.props.data.length > 1 ? uint24Colors[i] : uint24Colors[2];
       this.drawHistogram(ctx, histogram, maxValue, color);
@@ -116,27 +122,52 @@ class Histogram extends React.PureComponent<HistogramProps> {
   render() {
     const { min, max, data } = this.props;
     const { min: minRange, max: maxRange } = data[0];
+    const maxValue = this.getMaximumValue(data);
+    const middleValue = Math.round(Math.pow(Math.E, Math.log(maxValue) / 2));
     return (
       <React.Fragment>
-        <canvas
-          ref={ref => {
-            this.canvasRef = ref;
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "row",
           }}
-          width={300}
-          height={canvasHeight}
-        />
-        <Slider
-          value={[min, max]}
-          min={minRange}
-          max={maxRange}
-          range
-          defaultValue={[minRange, maxRange]}
-          onChange={this.onThresholdChange}
-          onAfterChange={this.onThresholdChange}
-          style={{ width: 300, margin: 0, marginBottom: 18 }}
-          step={(maxRange - minRange) / 255}
-          tipFormatter={val => roundTo(val, 2).toString()}
-        />
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              paddingBottom: sliderHeight,
+              textAlign: "right",
+              fontSize: 12,
+            }}
+          >
+            <div>{maxValue}</div>
+            <div>{middleValue}</div>
+            <div>0</div>
+          </div>
+          <div style={{ height: "100%", display: "inline-block", width: canvasWidth }}>
+            <canvas
+              ref={ref => {
+                this.canvasRef = ref;
+              }}
+              width={250}
+              height={canvasHeight}
+            />
+            <Slider
+              value={[min, max]}
+              min={minRange}
+              max={maxRange}
+              range
+              defaultValue={[minRange, maxRange]}
+              onChange={this.onThresholdChange}
+              onAfterChange={this.onThresholdChange}
+              style={{ width: "100%", margin: 0, marginBottom: 18 }}
+              step={(maxRange - minRange) / 255}
+              tipFormatter={val => roundTo(val, 2).toString()}
+            />
+          </div>
+        </div>
       </React.Fragment>
     );
   }
